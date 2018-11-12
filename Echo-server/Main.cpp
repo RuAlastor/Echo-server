@@ -84,9 +84,41 @@ int main() {
 	do {
 		iResult = recv(ClientSocket, buffer, DEFAULT_BUFFLEN, 0);
 		if (iResult > 0) {
-
+			std::cout << "Bytes recieved: " << iResult << '\n';
+			// Echo message to client
+			iSendResult = send(ClientSocket, buffer, iResult, 0);
+			if (iSendResult == SOCKET_ERROR) {
+				std::cout << "send() failed: " << WSAGetLastError << '\n';
+				system("pause");
+				closesocket(ClientSocket);
+				WSACleanup();
+				return 1;
+			}
+			std::cout << "Bytes sent: " << iSendResult << '\n';
+		}
+		else if (iResult == 0) {
+			std::cout << "Connection closed...\n";
+		}
+		else {
+			std::cout << "Recieving failed: " << WSAGetLastError << '\n';
+			system("pause");
+			closesocket(ClientSocket);
+			WSACleanup();
+			return 1;
 		}
 	} while (iResult > 0);
+
+	// Disconnecting the server
+	initResult = shutdown(ClientSocket, SD_SEND);
+	if (initResult == SOCKET_ERROR) {
+		std::cout << "shutdown() failed: " << WSAGetLastError() << '\n';
+		system("pause");
+		closesocket(ClientSocket);
+		WSACleanup();
+	}
+	closesocket(ClientSocket);
+	WSACleanup();
+	system("pause");
 
 	return 0;
 }
