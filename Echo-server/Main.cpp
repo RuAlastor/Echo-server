@@ -1,6 +1,6 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS // needed to use inet_ntoa
 #define DEFAULT_PORT "12321"
-#define DEFAULT_BUFFLEN 4096
+#define DEFAULT_BUFFLEN 4096 // The biggest amount of bytes allowed to send in a single message
 
 #include <iostream>
 #include <WS2tcpip.h>
@@ -17,9 +17,11 @@ struct Client {
 	SOCKET ClientSocket;
 	sockaddr_in client_addr;
 	char response[DEFAULT_BUFFLEN];
+	int client_len;
 	Client() {
 		Id = currentId++;
 		ZeroMemory(&this->client_addr.sin_zero, sizeof(this->client_addr.sin_zero));
+		client_len = sizeof(client_addr);
 	}
 };
 struct Params {
@@ -217,13 +219,13 @@ int main() {
 		std::vector<HANDLE> clientThreads;
 		std::vector<Client*> clients;
 
-		// Creating a thread for a new client
 		clients.push_back(new Client());
 		std::cout << "Waiting for connection...\n";
 		while (clients.back()->ClientSocket = accept(listeningSocket, (sockaddr*)&clients.back()->client_addr, &clients.back()->client_len)) {
 			if (clients.back()->ClientSocket == INVALID_SOCKET) {
 				throw Errors::Connection(&listeningSocket, WSAGetLastError());
 			}
+			// Creating a thread for a new client
 			clientThreads.push_back(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ConnectNewClient, new Params(clients.back(), &clients), 0, NULL));
 			stopper = false;
 			while (true) {
@@ -246,9 +248,10 @@ int main() {
 	}
 }
 
+// Send back received data to the client
 void WINAPI ConnectNewClient(void* _params) {
 	Params* params = (Params*)_params;
-	std::cout << "New client connected " << inet_ntoa(params->currentClient->client_addr.sin_addr) << '\n';
+	std::cout << "New client connected " << inet_ntoa(params->currentClient->client_addr.sin_addr) << ". Client Id: " << params->currentClient->Id << '\n';
 	std::vector<Client*>::iterator iter;
 
 	int iResult, iSendResult;
@@ -262,7 +265,17 @@ void WINAPI ConnectNewClient(void* _params) {
 			}
 		}
 		else if (iResult == 0) {
-			std::cout << "Connection with client " << inet_ntoa(params->currentClient->client_addr.sin_addr) << " closed\n";
+			std::cout << "Connection with client #" << params->currentClient->Id << " closed\n"; 
+			for (iter = params->allClients->begin(); iter != params->allClients->end(); ++iter)
+			{
+				if ((*iter)->Id == params->currentClient->Id)
+				{
+					delete((*iter));
+					params->allClients->erase(iter);
+					break;
+				}
+			}
+			break;
 		}
 		else {
 			throw Errors::Send(params);
